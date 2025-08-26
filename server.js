@@ -1,24 +1,32 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
-const crypto = require('crypto'); // Biblioteca nativa para gerar IDs únicos
+const crypto = require('crypto'); 
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000; // ✅ Porta dinâmica para o Render
 
-app.use(cors());
+// ✅ CORS: libera apenas seus dois sites
+app.use(cors({
+  origin: [
+    "https://site da gamificação.onrender.com",
+    "https://site de ponto.onrender.com"
+  ],
+  credentials: true
+}));
+
 app.use(express.json());
 
-// ✅ Servir arquivos estáticos da pasta "public"
+// Servir arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ✅ Rota explícita para dashboard.html
+// Rota explícita para dashboard
 app.get('/dashboard.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
-// Conectar ao banco de dados SQLite
+// ================== BANCO DE DADOS ==================
 const db = new sqlite3.Database('./ranking.db', (err) => {
     if (err) {
         console.error('Erro ao conectar ao banco:', err.message);
@@ -27,7 +35,6 @@ const db = new sqlite3.Database('./ranking.db', (err) => {
     }
 });
 
-// Criar tabela de Ranking se não existir
 db.run(`
     CREATE TABLE IF NOT EXISTS ranking (
         id TEXT PRIMARY KEY,
@@ -39,7 +46,6 @@ db.run(`
     )
 `);
 
-// ➡️ NOVO: Criar tabela para os registros de Ponto
 db.run(`
     CREATE TABLE IF NOT EXISTS pontos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,7 +58,7 @@ db.run(`
 
 // ================== ROTAS API ==================
 
-// ✅ Rota para buscar todo o ranking (ordenado por BIP)
+// Ranking completo
 app.get('/api/ranking', (req, res) => {
     db.all(`SELECT id, nome, avatar, bip FROM ranking ORDER BY bip DESC`, [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -60,7 +66,7 @@ app.get('/api/ranking', (req, res) => {
     });
 });
 
-// ✅ Rota para buscar o TOP 3 do ranking
+// Top 3
 app.get('/api/ranking/top3', (req, res) => {
     db.all(`SELECT id, nome, avatar, bip FROM ranking ORDER BY bip DESC LIMIT 3`, [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -68,10 +74,9 @@ app.get('/api/ranking/top3', (req, res) => {
     });
 });
 
-// ✅ Rota para inserir ou atualizar um usuário no ranking
+// Atualizar ou inserir no ranking
 app.post('/api/ranking', (req, res) => {
     const { id, nome, avatar, bip } = req.body;
-
     if (!id || !nome) {
         return res.status(400).json({ error: 'ID e Nome são obrigatórios' });
     }
@@ -89,10 +94,9 @@ app.post('/api/ranking', (req, res) => {
     });
 });
 
-// ✅ Rota para cadastrar um novo usuário
+// Cadastro
 app.post('/api/cadastrar', (req, res) => {
     const { nome, email, senha } = req.body;
-
     if (!nome || !email || !senha) {
         return res.status(400).json({ status: 'erro', mensagem: 'Nome, e-mail e senha são obrigatórios.' });
     }
@@ -108,7 +112,6 @@ app.post('/api/cadastrar', (req, res) => {
             [id, nome, email, senha, avatar, 0],
             function (err) {
                 if (err) {
-                    console.error('Erro ao inserir o usuário:', err.message);
                     return res.status(500).json({ status: 'erro', mensagem: 'Erro interno ao cadastrar o usuário.' });
                 }
                 res.status(201).json({ status: 'sucesso', mensagem: 'Usuário cadastrado com sucesso!', usuario_id: id });
@@ -117,10 +120,9 @@ app.post('/api/cadastrar', (req, res) => {
     });
 });
 
-// ✅ Rota para login de usuário
+// Login
 app.post('/api/login', (req, res) => {
     const { email, senha } = req.body;
-
     if (!email || !senha) {
         return res.status(400).json({ status: 'erro', mensagem: 'E-mail e senha são obrigatórios.' });
     }
@@ -137,19 +139,16 @@ app.post('/api/login', (req, res) => {
     });
 });
 
-// ➡️ NOVO: Rota para registrar ponto e adicionar BIP (CORRIGIDA)
+// Registrar ponto
 app.post('/api/ponto', (req, res) => {
     const { usuario_id } = req.body;
-
     if (!usuario_id) {
         return res.status(400).json({ status: 'erro', mensagem: 'ID do usuário é obrigatório.' });
     }
 
     const moedasAdicionadas = 5;
 
-    // Iniciar a transação
     db.serialize(() => {
-        // 1. Atualizar o BIP do usuário
         db.run(`UPDATE ranking SET bip = bip + ? WHERE id = ?`,
             [moedasAdicionadas, usuario_id],
             function (err) {
@@ -157,9 +156,9 @@ app.post('/api/ponto', (req, res) => {
                     return res.status(500).json({ status: 'erro', mensagem: 'Erro ao atualizar BIP.' });
                 }
 
-                // 2. Inserir o novo registro de ponto na tabela 'pontos'
                 const dataAtual = new Date().toLocaleDateString('pt-BR');
                 const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+
                 db.run(`INSERT INTO pontos (usuario_id, data_ponto, hora_ponto) VALUES (?, ?, ?)`,
                     [usuario_id, dataAtual, horaAtual],
                     function (err) {
@@ -167,17 +166,15 @@ app.post('/api/ponto', (req, res) => {
                             return res.status(500).json({ status: 'erro', mensagem: 'Erro ao registrar ponto.' });
                         }
 
-                        // 3. Buscar o novo valor total de BIP do usuário
                         db.get(`SELECT bip FROM ranking WHERE id = ?`, [usuario_id], (err, row) => {
                             if (err || !row) {
                                 return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar o novo total de BIP.' });
                             }
 
-                            // 4. Enviar a resposta de sucesso com o novo total
                             res.status(200).json({
                                 status: 'sucesso',
                                 mensagem: 'Ponto registrado com sucesso!',
-                                moedas: row.bip // Retorna o novo total de BIP
+                                moedas: row.bip
                             });
                         });
                     }
@@ -187,10 +184,10 @@ app.post('/api/ponto', (req, res) => {
     });
 });
 
-// ➡️ Rota para buscar o histórico de pontos do usuário (Corrigida)
+// Histórico de pontos
 app.get('/api/pontos/:id', (req, res) => {
     const usuario_id = req.params.id;
-    const moedasAdicionadas = 5; // A mesma quantidade fixa que você adiciona ao registrar o ponto.
+    const moedasAdicionadas = 5;
 
     db.all(`SELECT data_ponto, hora_ponto FROM pontos WHERE usuario_id = ? ORDER BY data_ponto DESC, hora_ponto DESC`, 
         [usuario_id], 
@@ -199,11 +196,10 @@ app.get('/api/pontos/:id', (req, res) => {
                 return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar histórico de pontos.' });
             }
 
-            // Mapeia os dados para incluir a quantidade de moedas
             const pontosComMoedas = rows.map(ponto => ({
                 data_ponto: ponto.data_ponto,
                 hora_ponto: ponto.hora_ponto,
-                moedas_ganhas: moedasAdicionadas // Adiciona o campo moedas_ganhas
+                moedas_ganhas: moedasAdicionadas
             }));
 
             res.status(200).json({ status: 'sucesso', pontos: pontosComMoedas });
@@ -211,11 +207,11 @@ app.get('/api/pontos/:id', (req, res) => {
     );
 });
 
-
 // ================== START SERVER ==================
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
+
 
 
 
