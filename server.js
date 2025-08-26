@@ -8,13 +8,8 @@ const app = express();
 const PORT = process.env.PORT || 3000; // ✅ Porta dinâmica para o Render
 
 // ✅ CORS: libera apenas seus dois sites
-app.use(cors({
-  origin: [
-    "https://site da gamificação.onrender.com",
-    "https://site de ponto.onrender.com"
-  ],
-  credentials: true
-}));
+app.use(cors({ origin: '*', credentials: true }));
+
 
 app.use(express.json());
 
