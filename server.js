@@ -10,7 +10,6 @@ const PORT = process.env.PORT || 3000; // ✅ Porta dinâmica para o Render
 // ✅ CORS: libera apenas seus dois sites
 app.use(cors({ origin: '*', credentials: true }));
 
-
 app.use(express.json());
 
 // Servir arquivos estáticos
@@ -134,6 +133,18 @@ app.post('/api/login', (req, res) => {
     });
 });
 
+// 🔹 NOVA ROTA: Buscar usuário logado por ID
+app.get('/api/usuario-logado/:id', (req, res) => {
+    const usuario_id = req.params.id;
+
+    db.get(`SELECT id, nome, avatar, bip FROM ranking WHERE id = ?`, [usuario_id], (err, usuario) => {
+        if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar usuário.' });
+        if (!usuario) return res.status(404).json({ status: 'erro', mensagem: 'Usuário não encontrado.' });
+
+        res.json({ status: 'sucesso', usuario });
+    });
+});
+
 // Registrar ponto
 app.post('/api/ponto', (req, res) => {
     const { usuario_id } = req.body;
@@ -206,6 +217,7 @@ app.get('/api/pontos/:id', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
+
 
 
 
