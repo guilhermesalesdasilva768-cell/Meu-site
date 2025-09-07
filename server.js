@@ -7,9 +7,8 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000; // ✅ Porta dinâmica para o Render
 
-// ✅ CORS: libera apenas seus dois sites
+// ✅ CORS: libera apenas seus dois sites (pode restringir se quiser)
 app.use(cors({ origin: '*', credentials: true }));
-
 
 app.use(express.json());
 
@@ -134,7 +133,19 @@ app.post('/api/login', (req, res) => {
     });
 });
 
-// Registrar ponto
+// 🔹 Buscar usuário logado por ID
+app.get('/api/usuario-logado/:id', (req, res) => {
+    const usuario_id = req.params.id;
+
+    db.get(`SELECT id, nome, avatar, bip FROM ranking WHERE id = ?`, [usuario_id], (err, usuario) => {
+        if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar usuário.' });
+        if (!usuario) return res.status(404).json({ status: 'erro', mensagem: 'Usuário não encontrado.' });
+
+        res.json({ status: 'sucesso', usuario });
+    });
+});
+
+// 🔹 Registrar ponto (+5 moedas)
 app.post('/api/ponto', (req, res) => {
     const { usuario_id } = req.body;
     if (!usuario_id) {
@@ -179,7 +190,7 @@ app.post('/api/ponto', (req, res) => {
     });
 });
 
-// Histórico de pontos
+// 🔹 Histórico de pontos
 app.get('/api/pontos/:id', (req, res) => {
     const usuario_id = req.params.id;
     const moedasAdicionadas = 5;
@@ -192,14 +203,40 @@ app.get('/api/pontos/:id', (req, res) => {
             }
 
             const pontosComMoedas = rows.map(ponto => ({
-                data_ponto: ponto.data_ponto,
-                hora_ponto: ponto.hora_ponto,
-                moedas_ganhas: moedasAdicionadas
+                data: ponto.data_ponto,
+                hora: ponto.hora_ponto,
+                moedas: moedasAdicionadas
             }));
 
             res.status(200).json({ status: 'sucesso', pontos: pontosComMoedas });
         }
     );
+});
+
+// 🔹 Buscar apenas moedas do usuário
+app.get('/api/moedas/:id', (req, res) => {
+    const usuario_id = req.params.id;
+
+    db.get(`SELECT bip FROM ranking WHERE id = ?`, [usuario_id], (err, row) => {
+        if (err) {
+            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar moedas.' });
+        }
+        if (!row) {
+            return res.status(404).json({ status: 'erro', mensagem: 'Usuário não encontrado.' });
+        }
+
+        res.json({ status: 'sucesso', moedas: row.bip });
+    });
+});
+
+// 🔹 Resetar ranking (manual)
+app.post('/api/reset-ranking', (req, res) => {
+    db.run(`UPDATE ranking SET bip = 0`, [], function(err) {
+        if (err) {
+            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao resetar ranking.' });
+        }
+        res.json({ status: 'sucesso', mensagem: 'Ranking resetado com sucesso!' });
+    });
 });
 
 // ================== START SERVER ==================
