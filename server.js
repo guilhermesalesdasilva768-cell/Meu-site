@@ -1,19 +1,15 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
-const crypto = require('crypto');
+const crypto = require('crypto'); 
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000; // ✅ Porta dinâmica para o Render
 
-// Configuração do CORS para permitir requisições apenas dos seus sites no Render
-const corsOptions = {
-    origin: ['https://site-de-ponto.onrender.com', 'https://site-da-gamificacao.onrender.com'],
-    credentials: true
-};
+// ✅ CORS: libera apenas seus dois sites
+app.use(cors({ origin: '*', credentials: true }));
 
-app.use(cors(corsOptions));
 
 app.use(express.json());
 
@@ -135,18 +131,6 @@ app.post('/api/login', (req, res) => {
             mensagem: 'Login realizado com sucesso!', 
             usuario: usuario 
         });
-    });
-});
-
-// 🔹 NOVA ROTA: Buscar usuário logado por ID
-app.get('/api/usuario-logado/:id', (req, res) => {
-    const usuario_id = req.params.id;
-
-    db.get(`SELECT id, nome, avatar, bip FROM ranking WHERE id = ?`, [usuario_id], (err, usuario) => {
-        if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar usuário.' });
-        if (!usuario) return res.status(404).json({ status: 'erro', mensagem: 'Usuário não encontrado.' });
-
-        res.json({ status: 'sucesso', usuario });
     });
 });
 
