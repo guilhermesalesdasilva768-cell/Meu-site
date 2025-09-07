@@ -1,14 +1,19 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
-const crypto = require('crypto'); 
+const crypto = require('crypto');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000; // ✅ Porta dinâmica para o Render
+const PORT = process.env.PORT || 3000;
 
-// ✅ CORS: libera apenas seus dois sites
-app.use(cors({ origin: '*', credentials: true }));
+// Configuração do CORS para permitir requisições apenas dos seus sites no Render
+const corsOptions = {
+    origin: ['https://grow-point-system.onrender.com', 'https://grow-gamification.onrender.com'],
+    credentials: true
+};
+
+app.use(cors(corsOptions));
 
 app.use(express.json());
 
