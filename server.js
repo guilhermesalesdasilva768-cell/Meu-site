@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 
 // Configuração do CORS para permitir requisições apenas dos seus sites no Render
 const corsOptions = {
-    origin: ['https://grow-point-system.onrender.com', 'https://grow-gamification.onrender.com'],
+    origin: ['https://site-de-ponto.onrender.com', 'https://site-da-gamificacao.onrender.com'],
     credentials: true
 };
 
