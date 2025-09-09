@@ -178,10 +178,10 @@ app.post('/api/ponto', (req, res) => {
                             }
 
                             res.status(200).json({
-                                status: 'sucesso',
-                                mensagem: 'Ponto registrado com sucesso!',
-                                moedas: row.bip
-                            });
+    status: 'sucesso',
+    mensagem: 'Ponto registrado com sucesso!',
+    bip: row.bip
+});
                         });
                     }
                 );
@@ -225,7 +225,8 @@ app.get('/api/moedas/:id', (req, res) => {
             return res.status(404).json({ status: 'erro', mensagem: 'Usuário não encontrado.' });
         }
 
-        res.json({ status: 'sucesso', moedas: row.bip });
+        res.json({ status: 'sucesso', bip: row.bip });
+
     });
 });
 
