@@ -5,11 +5,10 @@ const crypto = require('crypto');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000; // ✅ Porta dinâmica para o Render
+const PORT = process.env.PORT || 3000; // Porta dinâmica para o Render
 
-// ✅ CORS: libera apenas seus dois sites (pode restringir se quiser)
+// CORS: libera tudo (pode restringir aos seus sites)
 app.use(cors({ origin: '*', credentials: true }));
-
 app.use(express.json());
 
 // Servir arquivos estáticos
@@ -101,7 +100,7 @@ app.post('/api/cadastrar', (req, res) => {
 
         const id = crypto.randomUUID();
         const avatar = `https://api.dicebear.com/7.x/pixel-art/svg?seed=${nome}`;
-        
+
         db.run(`INSERT INTO ranking (id, nome, email, senha, avatar, bip) VALUES (?, ?, ?, ?, ?, ?)`, 
             [id, nome, email, senha, avatar, 0],
             function (err) {
@@ -124,16 +123,16 @@ app.post('/api/login', (req, res) => {
     db.get(`SELECT id, nome, avatar, bip FROM ranking WHERE email = ? AND senha = ?`, [email, senha], (err, usuario) => {
         if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro interno do servidor.' });
         if (!usuario) return res.status(401).json({ status: 'erro', mensagem: 'E-mail ou senha incorretos.' });
-        
+
         res.status(200).json({ 
             status: 'sucesso', 
             mensagem: 'Login realizado com sucesso!', 
-            usuario: usuario 
+            usuario // 🔹 retorna o objeto inteiro com id, nome, avatar, bip
         });
     });
 });
 
-// 🔹 Buscar usuário logado por ID
+// Buscar usuário logado por ID
 app.get('/api/usuario-logado/:id', (req, res) => {
     const usuario_id = req.params.id;
 
@@ -145,7 +144,7 @@ app.get('/api/usuario-logado/:id', (req, res) => {
     });
 });
 
-// 🔹 Registrar ponto (+5 moedas)
+// Registrar ponto (+5 moedas)
 app.post('/api/ponto', (req, res) => {
     const { usuario_id } = req.body;
     if (!usuario_id) {
@@ -178,10 +177,10 @@ app.post('/api/ponto', (req, res) => {
                             }
 
                             res.status(200).json({
-    status: 'sucesso',
-    mensagem: 'Ponto registrado com sucesso!',
-    bip: row.bip
-});
+                                status: 'sucesso',
+                                mensagem: 'Ponto registrado com sucesso!',
+                                bip: row.bip
+                            });
                         });
                     }
                 );
@@ -190,7 +189,7 @@ app.post('/api/ponto', (req, res) => {
     });
 });
 
-// 🔹 Histórico de pontos
+// Histórico de pontos
 app.get('/api/pontos/:id', (req, res) => {
     const usuario_id = req.params.id;
     const moedasAdicionadas = 5;
@@ -213,7 +212,7 @@ app.get('/api/pontos/:id', (req, res) => {
     );
 });
 
-// 🔹 Buscar apenas moedas do usuário
+// Buscar apenas moedas do usuário
 app.get('/api/moedas/:id', (req, res) => {
     const usuario_id = req.params.id;
 
@@ -226,11 +225,10 @@ app.get('/api/moedas/:id', (req, res) => {
         }
 
         res.json({ status: 'sucesso', bip: row.bip });
-
     });
 });
 
-// 🔹 Resetar ranking (manual)
+// Resetar ranking
 app.post('/api/reset-ranking', (req, res) => {
     db.run(`UPDATE ranking SET bip = 0`, [], function(err) {
         if (err) {
@@ -244,6 +242,7 @@ app.post('/api/reset-ranking', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
+
 
 
 
