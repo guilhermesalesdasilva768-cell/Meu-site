@@ -190,6 +190,49 @@ app.post('/api/ponto', (req, res) => {
     });
 });
 
+// 🔹 Registrar pontos extras (jogos/quiz)
+app.post('/api/pontos-extra', (req, res) => {
+    const { usuario_id, origem, pontos } = req.body;
+    if (!usuario_id || !origem || !pontos) {
+        return res.status(400).json({ status: 'erro', mensagem: 'Dados inválidos.' });
+    }
+
+    db.serialize(() => {
+        db.run(`UPDATE ranking SET bip = bip + ? WHERE id = ?`,
+            [pontos, usuario_id],
+            function (err) {
+                if (err) {
+                    return res.status(500).json({ status: 'erro', mensagem: 'Erro ao atualizar BIP.' });
+                }
+
+                const dataAtual = new Date().toLocaleDateString('pt-BR');
+                const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+
+                db.run(`INSERT INTO pontos (usuario_id, data_ponto, hora_ponto) VALUES (?, ?, ?)`,
+                    [usuario_id, dataAtual, horaAtual],
+                    function (err) {
+                        if (err) {
+                            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao registrar pontos extras.' });
+                        }
+
+                        db.get(`SELECT bip FROM ranking WHERE id = ?`, [usuario_id], (err, row) => {
+                            if (err || !row) {
+                                return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar o novo total de BIP.' });
+                            }
+
+                            res.status(200).json({
+                                status: 'sucesso',
+                                mensagem: `+${pontos} BIP adicionados (${origem})!`,
+                                moedas: row.bip
+                            });
+                        });
+                    }
+                );
+            }
+        );
+    });
+});
+
 // 🔹 Histórico de pontos
 app.get('/api/pontos/:id', (req, res) => {
     const usuario_id = req.params.id;
@@ -243,3 +286,4 @@ app.post('/api/reset-ranking', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
+
