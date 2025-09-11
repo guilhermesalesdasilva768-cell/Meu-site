@@ -7,9 +7,8 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000; // ✅ Porta dinâmica para o Render
 
-// ✅ CORS: libera apenas seus dois sites (pode restringir se quiser)
+// ✅ CORS
 app.use(cors({ origin: '*', credentials: true }));
-
 app.use(express.json());
 
 // Servir arquivos estáticos
@@ -29,6 +28,7 @@ const db = new sqlite3.Database('./ranking.db', (err) => {
     }
 });
 
+// Tabela de ranking
 db.run(`
     CREATE TABLE IF NOT EXISTS ranking (
         id TEXT PRIMARY KEY,
@@ -40,12 +40,15 @@ db.run(`
     )
 `);
 
+// Tabela de histórico de BIP ganhos
 db.run(`
     CREATE TABLE IF NOT EXISTS pontos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         usuario_id TEXT NOT NULL,
         data_ponto TEXT NOT NULL,
         hora_ponto TEXT NOT NULL,
+        bip INTEGER NOT NULL,
+        origem TEXT,
         FOREIGN KEY (usuario_id) REFERENCES ranking(id)
     )
 `);
@@ -145,18 +148,18 @@ app.get('/api/usuario-logado/:id', (req, res) => {
     });
 });
 
-// 🔹 Registrar ponto (+5 moedas)
+// 🔹 Registrar ponto normal (+5 BIP)
 app.post('/api/ponto', (req, res) => {
     const { usuario_id } = req.body;
     if (!usuario_id) {
         return res.status(400).json({ status: 'erro', mensagem: 'ID do usuário é obrigatório.' });
     }
 
-    const moedasAdicionadas = 5;
+    const bipAdicionados = 5;
 
     db.serialize(() => {
         db.run(`UPDATE ranking SET bip = bip + ? WHERE id = ?`,
-            [moedasAdicionadas, usuario_id],
+            [bipAdicionados, usuario_id],
             function (err) {
                 if (err) {
                     return res.status(500).json({ status: 'erro', mensagem: 'Erro ao atualizar BIP.' });
@@ -165,8 +168,9 @@ app.post('/api/ponto', (req, res) => {
                 const dataAtual = new Date().toLocaleDateString('pt-BR');
                 const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour12: false });
 
-                db.run(`INSERT INTO pontos (usuario_id, data_ponto, hora_ponto) VALUES (?, ?, ?)`,
-                    [usuario_id, dataAtual, horaAtual],
+                db.run(
+                    `INSERT INTO pontos (usuario_id, data_ponto, hora_ponto, bip, origem) VALUES (?, ?, ?, ?, ?)`,
+                    [usuario_id, dataAtual, horaAtual, bipAdicionados, "ponto"],
                     function (err) {
                         if (err) {
                             return res.status(500).json({ status: 'erro', mensagem: 'Erro ao registrar ponto.' });
@@ -190,9 +194,9 @@ app.post('/api/ponto', (req, res) => {
     });
 });
 
-// 🔹 Registrar pontos extras (jogos/quiz)
+// 🔹 Registrar BIP extras (jogos/quiz)
 app.post('/api/pontos-extra', (req, res) => {
-    const { usuario_id, origem, pontos } = req.body;
+    const { usuario_id, origem, pontos } = req.body; // "pontos" aqui são BIP ganhos
     if (!usuario_id || !origem || !pontos) {
         return res.status(400).json({ status: 'erro', mensagem: 'Dados inválidos.' });
     }
@@ -208,11 +212,12 @@ app.post('/api/pontos-extra', (req, res) => {
                 const dataAtual = new Date().toLocaleDateString('pt-BR');
                 const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour12: false });
 
-                db.run(`INSERT INTO pontos (usuario_id, data_ponto, hora_ponto) VALUES (?, ?, ?)`,
-                    [usuario_id, dataAtual, horaAtual],
+                db.run(
+                    `INSERT INTO pontos (usuario_id, data_ponto, hora_ponto, bip, origem) VALUES (?, ?, ?, ?, ?)`,
+                    [usuario_id, dataAtual, horaAtual, pontos, origem],
                     function (err) {
                         if (err) {
-                            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao registrar pontos extras.' });
+                            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao registrar BIP extras.' });
                         }
 
                         db.get(`SELECT bip FROM ranking WHERE id = ?`, [usuario_id], (err, row) => {
@@ -233,36 +238,33 @@ app.post('/api/pontos-extra', (req, res) => {
     });
 });
 
-// 🔹 Histórico de pontos
+// 🔹 Histórico de BIP ganhos
 app.get('/api/pontos/:id', (req, res) => {
     const usuario_id = req.params.id;
-    const moedasAdicionadas = 5;
 
-    db.all(`SELECT data_ponto, hora_ponto FROM pontos WHERE usuario_id = ? ORDER BY data_ponto DESC, hora_ponto DESC`, 
+    db.all(
+        `SELECT data_ponto, hora_ponto, bip, origem 
+         FROM pontos 
+         WHERE usuario_id = ? 
+         ORDER BY data_ponto DESC, hora_ponto DESC`, 
         [usuario_id], 
         (err, rows) => {
             if (err) {
-                return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar histórico de pontos.' });
+                return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar histórico de BIP.' });
             }
 
-            const pontosComMoedas = rows.map(ponto => ({
-                data: ponto.data_ponto,
-                hora: ponto.hora_ponto,
-                moedas: moedasAdicionadas
-            }));
-
-            res.status(200).json({ status: 'sucesso', pontos: pontosComMoedas });
+            res.status(200).json({ status: 'sucesso', pontos: rows });
         }
     );
 });
 
-// 🔹 Buscar apenas moedas do usuário
+// 🔹 Buscar apenas saldo de BIP
 app.get('/api/moedas/:id', (req, res) => {
     const usuario_id = req.params.id;
 
     db.get(`SELECT bip FROM ranking WHERE id = ?`, [usuario_id], (err, row) => {
         if (err) {
-            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar moedas.' });
+            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar BIP.' });
         }
         if (!row) {
             return res.status(404).json({ status: 'erro', mensagem: 'Usuário não encontrado.' });
@@ -286,4 +288,5 @@ app.post('/api/reset-ranking', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
+
 
