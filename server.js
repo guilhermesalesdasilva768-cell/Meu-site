@@ -145,6 +145,27 @@ app.get('/api/usuario-logado/:id', (req, res) => {
     });
 });
 
+// 🔹 Rota para atualizar o avatar do usuário
+app.post('/api/avatar', (req, res) => {
+    const { id, avatar } = req.body;
+    if (!id || !avatar) {
+        return res.status(400).json({ status: 'erro', mensagem: 'ID e avatar são obrigatórios.' });
+    }
+
+    db.run(`UPDATE ranking SET avatar = ? WHERE id = ?`, 
+        [avatar, id], 
+        function (err) {
+            if (err) {
+                return res.status(500).json({ status: 'erro', mensagem: 'Erro ao atualizar o avatar.' });
+            }
+            if (this.changes === 0) {
+                return res.status(404).json({ status: 'erro', mensagem: 'Usuário não encontrado.' });
+            }
+            res.status(200).json({ status: 'sucesso', mensagem: 'Avatar atualizado com sucesso!' });
+        }
+    );
+});
+
 // 🔹 Registrar ponto (+5 moedas)
 app.post('/api/ponto', (req, res) => {
     const { usuario_id } = req.body;
