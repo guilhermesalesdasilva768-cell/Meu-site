@@ -102,6 +102,7 @@ app.post('/api/cadastrar', (req, res) => {
         const id = crypto.randomUUID();
       const avatarUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
 
+
         
         db.run(`INSERT INTO ranking (id, nome, email, senha, avatar, bip) VALUES (?, ?, ?, ?, ?, ?)`, 
             [id, nome, email, senha, avatar, 0],
