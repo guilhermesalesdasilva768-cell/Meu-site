@@ -261,5 +261,3 @@ app.post('/api/upload-avatar', upload.single('avatar'), (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
-
-
