@@ -240,23 +240,6 @@ app.post('/api/reset-ranking', (req, res) => {
     });
 });
 
-// 🔹 Upload de avatar
-app.post('/api/upload-avatar', upload.single('avatar'), (req, res) => {
-    const userId = req.body.userId;
-    if (!userId || !req.file) {
-        return res.status(400).json({ status: 'erro', mensagem: 'ID do usuário e arquivo são obrigatórios.' });
-    }
-
-    const avatarUrl = `/uploads/${req.file.filename}`;
-
-    db.run(`UPDATE ranking SET avatar = ? WHERE id = ?`, [avatarUrl, userId], function(err) {
-        if (err) {
-            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao salvar avatar.' });
-        }
-        res.json({ status: 'sucesso', mensagem: 'Avatar atualizado com sucesso!', avatar: avatarUrl });
-    });
-});
-
 // ================== START SERVER ==================
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
