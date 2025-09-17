@@ -100,7 +100,7 @@ app.post('/api/cadastrar', (req, res) => {
         if (row) return res.status(409).json({ status: 'erro', mensagem: 'Este e-mail já está cadastrado.' });
 
         const id = crypto.randomUUID();
-       const avatar = `https://api.multiavatar.com/${encodeURIComponent(nome)}.svg`; 
+       const avatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(nome)}`; 
 
         
         db.run(`INSERT INTO ranking (id, nome, email, senha, avatar, bip) VALUES (?, ?, ?, ?, ?, ?)`, 
