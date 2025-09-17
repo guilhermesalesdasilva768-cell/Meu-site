@@ -101,6 +101,7 @@ app.post('/api/cadastrar', (req, res) => {
 
         const id = crypto.randomUUID();
        const avatar = "https://via.placeholder.com/80";  
+
         
         db.run(`INSERT INTO ranking (id, nome, email, senha, avatar, bip) VALUES (?, ?, ?, ?, ?, ?)`, 
             [id, nome, email, senha, avatar, 0],
@@ -143,27 +144,6 @@ app.get('/api/usuario-logado/:id', (req, res) => {
 
         res.json({ status: 'sucesso', usuario });
     });
-});
-
-// 🔹 Rota para atualizar o avatar do usuário
-app.post('/api/avatar', (req, res) => {
-    const { id, avatar } = req.body;
-    if (!id || !avatar) {
-        return res.status(400).json({ status: 'erro', mensagem: 'ID e avatar são obrigatórios.' });
-    }
-
-    db.run(`UPDATE ranking SET avatar = ? WHERE id = ?`, 
-        [avatar, id], 
-        function (err) {
-            if (err) {
-                return res.status(500).json({ status: 'erro', mensagem: 'Erro ao atualizar o avatar.' });
-            }
-            if (this.changes === 0) {
-                return res.status(404).json({ status: 'erro', mensagem: 'Usuário não encontrado.' });
-            }
-            res.status(200).json({ status: 'sucesso', mensagem: 'Avatar atualizado com sucesso!' });
-        }
-    );
 });
 
 // 🔹 Registrar ponto (+5 moedas)
@@ -257,6 +237,23 @@ app.post('/api/reset-ranking', (req, res) => {
             return res.status(500).json({ status: 'erro', mensagem: 'Erro ao resetar ranking.' });
         }
         res.json({ status: 'sucesso', mensagem: 'Ranking resetado com sucesso!' });
+    });
+});
+
+// 🔹 Upload de avatar
+app.post('/api/upload-avatar', upload.single('avatar'), (req, res) => {
+    const userId = req.body.userId;
+    if (!userId || !req.file) {
+        return res.status(400).json({ status: 'erro', mensagem: 'ID do usuário e arquivo são obrigatórios.' });
+    }
+
+    const avatarUrl = `/uploads/${req.file.filename}`;
+
+    db.run(`UPDATE ranking SET avatar = ? WHERE id = ?`, [avatarUrl, userId], function(err) {
+        if (err) {
+            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao salvar avatar.' });
+        }
+        res.json({ status: 'sucesso', mensagem: 'Avatar atualizado com sucesso!', avatar: avatarUrl });
     });
 });
 
