@@ -3,16 +3,18 @@ const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const crypto = require('crypto'); 
 const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 
 const app = express();
-const PORT = process.env.PORT || 3000; // ✅ Porta dinâmica para o Render
+const PORT = process.env.PORT || 3000;
 
-// ✅ CORS: libera apenas seus dois sites (pode restringir se quiser)
+// CORS
 app.use(cors({ origin: '*', credentials: true }));
 
 app.use(express.json());
 
-// Servir arquivos estáticos
+// Servir arquivos estáticos (inclusive avatars)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Rota explícita para dashboard
@@ -49,6 +51,38 @@ db.run(`
         FOREIGN KEY (usuario_id) REFERENCES ranking(id)
     )
 `);
+
+// ================== UPLOAD DE AVATAR ==================
+const avatarsDir = path.join(__dirname, 'public', 'avatars');
+if (!fs.existsSync(avatarsDir)) {
+    fs.mkdirSync(avatarsDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, avatarsDir);
+    },
+    filename: function (req, file, cb) {
+        const ext = path.extname(file.originalname);
+        cb(null, req.body.usuario_id + ext);
+    }
+});
+const upload = multer({ storage: storage });
+
+app.post('/api/upload-avatar', upload.single('avatar'), (req, res) => {
+    const usuario_id = req.body.usuario_id;
+    if (!usuario_id || !req.file) {
+        return res.status(400).json({ status: 'erro', mensagem: 'ID do usuário e arquivo são obrigatórios.' });
+    }
+    // URL absoluta para produção/render
+    const avatarUrl = `${req.protocol}://${req.get('host')}/avatars/${req.file.filename}`;
+    db.run(`UPDATE ranking SET avatar = ? WHERE id = ?`, [avatarUrl, usuario_id], function (err) {
+        if (err) {
+            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao atualizar avatar.' });
+        }
+        res.json({ status: 'sucesso', avatarUrl: avatarUrl });
+    });
+});
 
 // ================== ROTAS API ==================
 
@@ -100,9 +134,8 @@ app.post('/api/cadastrar', (req, res) => {
         if (row) return res.status(409).json({ status: 'erro', mensagem: 'Este e-mail já está cadastrado.' });
 
         const id = crypto.randomUUID();
-       const avatar = "https://via.placeholder.com/80";  
+        const avatar = "https://via.placeholder.com/80";  
 
-        
         db.run(`INSERT INTO ranking (id, nome, email, senha, avatar, bip) VALUES (?, ?, ?, ?, ?, ?)`, 
             [id, nome, email, senha, avatar, 0],
             function (err) {
@@ -134,7 +167,7 @@ app.post('/api/login', (req, res) => {
     });
 });
 
-// 🔹 Buscar usuário logado por ID
+// Buscar usuário logado por ID
 app.get('/api/usuario-logado/:id', (req, res) => {
     const usuario_id = req.params.id;
 
@@ -146,7 +179,7 @@ app.get('/api/usuario-logado/:id', (req, res) => {
     });
 });
 
-// 🔹 Registrar ponto (+5 moedas)
+// Registrar ponto (+5 moedas)
 app.post('/api/ponto', (req, res) => {
     const { usuario_id } = req.body;
     if (!usuario_id) {
@@ -191,7 +224,7 @@ app.post('/api/ponto', (req, res) => {
     });
 });
 
-// 🔹 Histórico de pontos
+// Histórico de pontos
 app.get('/api/pontos/:id', (req, res) => {
     const usuario_id = req.params.id;
     const moedasAdicionadas = 5;
@@ -214,7 +247,7 @@ app.get('/api/pontos/:id', (req, res) => {
     );
 });
 
-// 🔹 Buscar apenas moedas do usuário
+// Buscar apenas moedas do usuário
 app.get('/api/moedas/:id', (req, res) => {
     const usuario_id = req.params.id;
 
@@ -230,7 +263,7 @@ app.get('/api/moedas/:id', (req, res) => {
     });
 });
 
-// 🔹 Resetar ranking (manual)
+// Resetar ranking (manual)
 app.post('/api/reset-ranking', (req, res) => {
     db.run(`UPDATE ranking SET bip = 0`, [], function(err) {
         if (err) {
