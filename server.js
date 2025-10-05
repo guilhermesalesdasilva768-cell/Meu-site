@@ -290,8 +290,3 @@ app.post('/api/reset-ranking', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
-
-// ================== START SERVER ==================
-app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
-});
