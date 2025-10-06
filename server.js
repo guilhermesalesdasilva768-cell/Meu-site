@@ -1,17 +1,23 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
-const crypto = require('crypto'); 
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
+<<<<<<< HEAD
 const multer = require('multer');
+=======
+>>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
 
 const app = express();
-const PORT = process.env.PORT || 3000; // ✅ Porta dinâmica para o Render
+const PORT = process.env.PORT || 3000;
 
+<<<<<<< HEAD
 // ✅ CORS
+=======
+// CORS liberado para qualquer origem
+>>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
 app.use(cors({ origin: '*', credentials: true }));
-
 app.use(express.json());
 
 // Servir arquivos estáticos
@@ -31,14 +37,16 @@ const db = new sqlite3.Database('./ranking.db', (err) => {
     }
 });
 
+// Cria a tabela ranking com campo tipoUsuario e MATRICULA!
 db.run(`
     CREATE TABLE IF NOT EXISTS ranking (
         id TEXT PRIMARY KEY,
         nome TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
+        matricula TEXT UNIQUE NOT NULL,
         senha TEXT NOT NULL,
         avatar TEXT,
-        bip INTEGER DEFAULT 0
+        bip INTEGER DEFAULT 0,
+        tipoUsuario TEXT DEFAULT 'colaborador'
     )
 `);
 
@@ -52,12 +60,17 @@ db.run(`
     )
 `);
 
+<<<<<<< HEAD
 // ================== UPLOAD DE AVATAR ==================
+=======
+// ================== UPLOAD DE AVATAR POR BASE64 ==================
+>>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
 const avatarsDir = path.join(__dirname, 'public', 'avatars');
 if (!fs.existsSync(avatarsDir)) {
     fs.mkdirSync(avatarsDir, { recursive: true });
 }
 
+<<<<<<< HEAD
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, avatarsDir);
@@ -81,6 +94,34 @@ app.post('/api/upload-avatar', upload.single('avatar'), (req, res) => {
             return res.status(500).json({ status: 'erro', mensagem: 'Erro ao atualizar avatar.' });
         }
         res.json({ status: 'sucesso', avatarUrl: avatarUrl });
+=======
+app.post('/api/upload-avatar', (req, res) => {
+    const { usuario_id, avatarBase64 } = req.body;
+    if (!usuario_id || !avatarBase64) {
+        return res.status(400).json({ status: 'erro', mensagem: 'ID do usuário e avatarBase64 são obrigatórios.' });
+    }
+    const matches = avatarBase64.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+    if (!matches) {
+        return res.status(400).json({ status: 'erro', mensagem: 'Formato do avatar inválido.' });
+    }
+    const ext = matches[1];
+    const data = matches[2];
+    const buffer = Buffer.from(data, 'base64');
+    const filename = `${usuario_id}.${ext}`;
+    const filePath = path.join(avatarsDir, filename);
+
+    fs.writeFile(filePath, buffer, (err) => {
+        if (err) {
+            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao salvar imagem.' });
+        }
+        const avatarUrl = `${req.protocol}://${req.get('host')}/avatars/${filename}`;
+        db.run(`UPDATE ranking SET avatar = ? WHERE id = ?`, [avatarUrl, usuario_id], function (err) {
+            if (err) {
+                return res.status(500).json({ status: 'erro', mensagem: 'Erro ao atualizar avatar.' });
+            }
+            res.json({ status: 'sucesso', avatarUrl: avatarUrl });
+        });
+>>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
     });
 });
 
@@ -108,7 +149,6 @@ app.post('/api/ranking', (req, res) => {
     if (!id || !nome) {
         return res.status(400).json({ error: 'ID e Nome são obrigatórios' });
     }
-
     db.run(`
         INSERT INTO ranking (id, nome, avatar, bip)
         VALUES (?, ?, ?, ?)
@@ -122,22 +162,27 @@ app.post('/api/ranking', (req, res) => {
     });
 });
 
-// Cadastro
+// Cadastro de colaborador (MATRICULA agora)
 app.post('/api/cadastrar', (req, res) => {
-    const { nome, email, senha } = req.body;
-    if (!nome || !email || !senha) {
-        return res.status(400).json({ status: 'erro', mensagem: 'Nome, e-mail e senha são obrigatórios.' });
+    const { nome, matricula, senha } = req.body;
+    if (!nome || !matricula || !senha) {
+        return res.status(400).json({ status: 'erro', mensagem: 'Nome, matrícula e senha são obrigatórios.' });
     }
-
-    db.get(`SELECT id FROM ranking WHERE email = ?`, [email], (err, row) => {
-        if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro ao verificar o e-mail.' });
-        if (row) return res.status(409).json({ status: 'erro', mensagem: 'Este e-mail já está cadastrado.' });
+    db.get(`SELECT id FROM ranking WHERE matricula = ?`, [matricula], (err, row) => {
+        if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro ao verificar a matrícula.' });
+        if (row) return res.status(409).json({ status: 'erro', mensagem: 'Esta matrícula já está cadastrada.' });
 
         const id = crypto.randomUUID();
+<<<<<<< HEAD
         const avatar = "https://via.placeholder.com/80";  
 
         db.run(`INSERT INTO ranking (id, nome, email, senha, avatar, bip) VALUES (?, ?, ?, ?, ?, ?)`, 
             [id, nome, email, senha, avatar, 0],
+=======
+        const avatar = "https://via.placeholder.com/80";
+        db.run(`INSERT INTO ranking (id, nome, matricula, senha, avatar, bip, tipoUsuario) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [id, nome, matricula, senha, avatar, 0, "colaborador"],
+>>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
             function (err) {
                 if (err) {
                     return res.status(500).json({ status: 'erro', mensagem: 'Erro interno ao cadastrar o usuário.' });
@@ -148,44 +193,73 @@ app.post('/api/cadastrar', (req, res) => {
     });
 });
 
-// Login
-app.post('/api/login', (req, res) => {
-    const { email, senha } = req.body;
-    if (!email || !senha) {
-        return res.status(400).json({ status: 'erro', mensagem: 'E-mail e senha são obrigatórios.' });
+// Cadastro de gestor (PainelAdmin)
+app.post('/api/cadastrar-gestor', (req, res) => {
+    const { nome, matricula, senha } = req.body;
+    if (!nome || !matricula || !senha) {
+        return res.status(400).json({ status: 'erro', mensagem: 'Nome, matrícula e senha são obrigatórios.' });
     }
+    db.get(`SELECT id FROM ranking WHERE matricula = ?`, [matricula], (err, row) => {
+        if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro ao verificar matrícula.' });
+        if (row) return res.status(409).json({ status: 'erro', mensagem: 'Essa matrícula já está cadastrada.' });
 
-    db.get(`SELECT id, nome, avatar, bip FROM ranking WHERE email = ? AND senha = ?`, [email, senha], (err, usuario) => {
+        const id = crypto.randomUUID();
+        const avatar = "https://via.placeholder.com/80";
+        db.run(
+            `INSERT INTO ranking (id, nome, matricula, senha, avatar, bip, tipoUsuario) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [id, nome, matricula, senha, avatar, 0, "gestor"],
+            function (err) {
+                if (err) {
+                    return res.status(500).json({ status: 'erro', mensagem: 'Erro ao cadastrar gestor.' });
+                }
+                res.status(201).json({ status: 'sucesso', mensagem: 'Gestor cadastrado com sucesso!', usuario_id: id });
+            }
+        );
+    });
+});
+
+// Login (MATRICULA agora)
+app.post('/api/login', (req, res) => {
+    const { matricula, senha } = req.body;
+    if (!matricula || !senha) {
+        return res.status(400).json({ status: 'erro', mensagem: 'Matrícula e senha são obrigatórios.' });
+    }
+    db.get(`SELECT id, nome, avatar, bip, tipoUsuario FROM ranking WHERE matricula = ? AND senha = ?`, [matricula, senha], (err, usuario) => {
         if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro interno do servidor.' });
-        if (!usuario) return res.status(401).json({ status: 'erro', mensagem: 'E-mail ou senha incorretos.' });
-        
-        res.status(200).json({ 
-            status: 'sucesso', 
-            mensagem: 'Login realizado com sucesso!', 
-            usuario: usuario 
+        if (!usuario) return res.status(401).json({ status: 'erro', mensagem: 'Matrícula ou senha incorretos.' });
+
+        res.status(200).json({
+            status: 'sucesso',
+            mensagem: 'Login realizado com sucesso!',
+            usuario: usuario
         });
     });
 });
 
+<<<<<<< HEAD
 // 🔹 Buscar usuário logado por ID
+=======
+// Buscar usuário logado por ID
+>>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
 app.get('/api/usuario-logado/:id', (req, res) => {
     const usuario_id = req.params.id;
-
-    db.get(`SELECT id, nome, avatar, bip FROM ranking WHERE id = ?`, [usuario_id], (err, usuario) => {
+    db.get(`SELECT id, nome, avatar, bip, tipoUsuario FROM ranking WHERE id = ?`, [usuario_id], (err, usuario) => {
         if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar usuário.' });
         if (!usuario) return res.status(404).json({ status: 'erro', mensagem: 'Usuário não encontrado.' });
-
         res.json({ status: 'sucesso', usuario });
     });
 });
 
+<<<<<<< HEAD
 // 🔹 Registrar ponto (+5 moedas)
+=======
+// Registrar ponto (+5 moedas)
+>>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
 app.post('/api/ponto', (req, res) => {
     const { usuario_id } = req.body;
     if (!usuario_id) {
         return res.status(400).json({ status: 'erro', mensagem: 'ID do usuário é obrigatório.' });
     }
-
     const moedasAdicionadas = 5;
 
     db.serialize(() => {
@@ -195,22 +269,18 @@ app.post('/api/ponto', (req, res) => {
                 if (err) {
                     return res.status(500).json({ status: 'erro', mensagem: 'Erro ao atualizar BIP.' });
                 }
-
                 const dataAtual = new Date().toLocaleDateString('pt-BR');
                 const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour12: false });
-
                 db.run(`INSERT INTO pontos (usuario_id, data_ponto, hora_ponto) VALUES (?, ?, ?)`,
                     [usuario_id, dataAtual, horaAtual],
                     function (err) {
                         if (err) {
                             return res.status(500).json({ status: 'erro', mensagem: 'Erro ao registrar ponto.' });
                         }
-
                         db.get(`SELECT bip FROM ranking WHERE id = ?`, [usuario_id], (err, row) => {
                             if (err || !row) {
                                 return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar o novo total de BIP.' });
                             }
-
                             res.status(200).json({
                                 status: 'sucesso',
                                 mensagem: 'Ponto registrado com sucesso!',
@@ -229,28 +299,32 @@ app.get('/api/pontos/:id', (req, res) => {
     const usuario_id = req.params.id;
     const moedasAdicionadas = 5;
 
-    db.all(`SELECT data_ponto, hora_ponto FROM pontos WHERE usuario_id = ? ORDER BY data_ponto DESC, hora_ponto DESC`, 
-        [usuario_id], 
+    db.all(`SELECT data_ponto, hora_ponto FROM pontos WHERE usuario_id = ? ORDER BY data_ponto DESC, hora_ponto DESC`,
+        [usuario_id],
         (err, rows) => {
             if (err) {
                 return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar histórico de pontos.' });
             }
-
             const pontosComMoedas = rows.map(ponto => ({
                 data: ponto.data_ponto,
                 hora: ponto.hora_ponto,
                 moedas: moedasAdicionadas
             }));
-
             res.status(200).json({ status: 'sucesso', pontos: pontosComMoedas });
         }
     );
 });
 
+<<<<<<< HEAD
 // 🔹 Buscar apenas moedas do usuário
 app.get('/api/moedas/:id', (req, res) => {
     const usuario_id = req.params.id;
 
+=======
+// Buscar apenas moedas do usuário
+app.get('/api/moedas/:id', (req, res) => {
+    const usuario_id = req.params.id;
+>>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
     db.get(`SELECT bip FROM ranking WHERE id = ?`, [usuario_id], (err, row) => {
         if (err) {
             return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar moedas.' });
@@ -258,14 +332,23 @@ app.get('/api/moedas/:id', (req, res) => {
         if (!row) {
             return res.status(404).json({ status: 'erro', mensagem: 'Usuário não encontrado.' });
         }
+<<<<<<< HEAD
 
+=======
+>>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
         res.json({ status: 'sucesso', moedas: row.bip });
     });
 });
 
+<<<<<<< HEAD
 // 🔹 Resetar ranking (manual)
 app.post('/api/reset-ranking', (req, res) => {
     db.run(`UPDATE ranking SET bip = 0`, [], function(err) {
+=======
+// Resetar ranking (manual)
+app.post('/api/reset-ranking', (req, res) => {
+    db.run(`UPDATE ranking SET bip = 0`, [], function (err) {
+>>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
         if (err) {
             return res.status(500).json({ status: 'erro', mensagem: 'Erro ao resetar ranking.' });
         }
@@ -277,6 +360,7 @@ app.post('/api/reset-ranking', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
+<<<<<<< HEAD
 
 
 
@@ -284,3 +368,5 @@ app.listen(PORT, () => {
 
 
 
+=======
+>>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
