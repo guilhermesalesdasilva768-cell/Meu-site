@@ -130,22 +130,27 @@ app.post('/api/cadastrar', (req, res) => {
     if (!nome || !matricula || !senha) {
         return res.status(400).json({ status: 'erro', mensagem: 'Nome, matrícula e senha são obrigatórios.' });
     }
-    db.get(`SELECT id FROM ranking WHERE matricula = ?`, [matricula], (err, row) => {
-        if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro ao verificar a matrícula.' });
-        if (row) return res.status(409).json({ status: 'erro', mensagem: 'Esta matrícula já está cadastrada.' });
+db.get(`SELECT id FROM ranking WHERE matricula = ?`, [matricula], (err, row) => {
+    if (err) {
+        console.error("Erro ao verificar matrícula:", err); // <-- LOG DETALHADO
+        return res.status(500).json({ status: 'erro', mensagem: 'Erro ao verificar a matrícula.' });
+    }
+    if (row) return res.status(409).json({ status: 'erro', mensagem: 'Esta matrícula já está cadastrada.' });
 
-        const id = crypto.randomUUID();
-        const avatar = "https://via.placeholder.com/80";
-        db.run(`INSERT INTO ranking (id, nome, matricula, senha, avatar, bip, tipoUsuario) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [id, nome, matricula, senha, avatar, 0, "colaborador"],
-            function (err) {
-                if (err) {
-                    return res.status(500).json({ status: 'erro', mensagem: 'Erro interno ao cadastrar o usuário.' });
-                }
-                res.status(201).json({ status: 'sucesso', mensagem: 'Usuário cadastrado com sucesso!', usuario_id: id });
+    // Cadastro normal
+    const id = crypto.randomUUID();
+    const avatar = "https://via.placeholder.com/80";
+    db.run(`INSERT INTO ranking (id, nome, matricula, senha, avatar, bip, tipoUsuario) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [id, nome, matricula, senha, avatar, 0, "colaborador"],
+        function (err) {
+            if (err) {
+                console.error("Erro ao cadastrar usuário:", err); // <-- LOG DETALHADO
+                return res.status(500).json({ status: 'erro', mensagem: 'Erro interno ao cadastrar o usuário.' });
             }
-        );
-    });
+            res.status(201).json({ status: 'sucesso', mensagem: 'Usuário cadastrado com sucesso!', usuario_id: id });
+        }
+    );
+});
 });
 
 // Cadastro de gestor (PainelAdmin)
