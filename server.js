@@ -4,19 +4,11 @@ const cors = require('cors');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
-<<<<<<< HEAD
-const multer = require('multer');
-=======
->>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-<<<<<<< HEAD
-// ✅ CORS
-=======
 // CORS liberado para qualquer origem
->>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
 app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json());
 
@@ -60,41 +52,12 @@ db.run(`
     )
 `);
 
-<<<<<<< HEAD
-// ================== UPLOAD DE AVATAR ==================
-=======
 // ================== UPLOAD DE AVATAR POR BASE64 ==================
->>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
 const avatarsDir = path.join(__dirname, 'public', 'avatars');
 if (!fs.existsSync(avatarsDir)) {
     fs.mkdirSync(avatarsDir, { recursive: true });
 }
 
-<<<<<<< HEAD
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, avatarsDir);
-    },
-    filename: function (req, file, cb) {
-        const ext = path.extname(file.originalname);
-        cb(null, req.body.usuario_id + ext);
-    }
-});
-const upload = multer({ storage: storage });
-
-app.post('/api/upload-avatar', upload.single('avatar'), (req, res) => {
-    const usuario_id = req.body.usuario_id;
-    if (!usuario_id || !req.file) {
-        return res.status(400).json({ status: 'erro', mensagem: 'ID do usuário e arquivo são obrigatórios.' });
-    }
-    // Para produção/render, usar URL absoluta:
-    const avatarUrl = `${req.protocol}://${req.get('host')}/avatars/${req.file.filename}`;
-    db.run(`UPDATE ranking SET avatar = ? WHERE id = ?`, [avatarUrl, usuario_id], function (err) {
-        if (err) {
-            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao atualizar avatar.' });
-        }
-        res.json({ status: 'sucesso', avatarUrl: avatarUrl });
-=======
 app.post('/api/upload-avatar', (req, res) => {
     const { usuario_id, avatarBase64 } = req.body;
     if (!usuario_id || !avatarBase64) {
@@ -121,7 +84,6 @@ app.post('/api/upload-avatar', (req, res) => {
             }
             res.json({ status: 'sucesso', avatarUrl: avatarUrl });
         });
->>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
     });
 });
 
@@ -168,29 +130,27 @@ app.post('/api/cadastrar', (req, res) => {
     if (!nome || !matricula || !senha) {
         return res.status(400).json({ status: 'erro', mensagem: 'Nome, matrícula e senha são obrigatórios.' });
     }
-    db.get(`SELECT id FROM ranking WHERE matricula = ?`, [matricula], (err, row) => {
-        if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro ao verificar a matrícula.' });
-        if (row) return res.status(409).json({ status: 'erro', mensagem: 'Esta matrícula já está cadastrada.' });
+db.get(`SELECT id FROM ranking WHERE matricula = ?`, [matricula], (err, row) => {
+    if (err) {
+        console.error("Erro ao verificar matrícula:", err); // <-- LOG DETALHADO
+        return res.status(500).json({ status: 'erro', mensagem: 'Erro ao verificar a matrícula.' });
+    }
+    if (row) return res.status(409).json({ status: 'erro', mensagem: 'Esta matrícula já está cadastrada.' });
 
-        const id = crypto.randomUUID();
-<<<<<<< HEAD
-        const avatar = "https://via.placeholder.com/80";  
-
-        db.run(`INSERT INTO ranking (id, nome, email, senha, avatar, bip) VALUES (?, ?, ?, ?, ?, ?)`, 
-            [id, nome, email, senha, avatar, 0],
-=======
-        const avatar = "https://via.placeholder.com/80";
-        db.run(`INSERT INTO ranking (id, nome, matricula, senha, avatar, bip, tipoUsuario) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [id, nome, matricula, senha, avatar, 0, "colaborador"],
->>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
-            function (err) {
-                if (err) {
-                    return res.status(500).json({ status: 'erro', mensagem: 'Erro interno ao cadastrar o usuário.' });
-                }
-                res.status(201).json({ status: 'sucesso', mensagem: 'Usuário cadastrado com sucesso!', usuario_id: id });
+    // Cadastro normal
+    const id = crypto.randomUUID();
+    const avatar = "https://via.placeholder.com/80";
+    db.run(`INSERT INTO ranking (id, nome, matricula, senha, avatar, bip, tipoUsuario) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [id, nome, matricula, senha, avatar, 0, "colaborador"],
+        function (err) {
+            if (err) {
+                console.error("Erro ao cadastrar usuário:", err); // <-- LOG DETALHADO
+                return res.status(500).json({ status: 'erro', mensagem: 'Erro interno ao cadastrar o usuário.' });
             }
-        );
-    });
+            res.status(201).json({ status: 'sucesso', mensagem: 'Usuário cadastrado com sucesso!', usuario_id: id });
+        }
+    );
+});
 });
 
 // Cadastro de gestor (PainelAdmin)
@@ -236,11 +196,7 @@ app.post('/api/login', (req, res) => {
     });
 });
 
-<<<<<<< HEAD
-// 🔹 Buscar usuário logado por ID
-=======
 // Buscar usuário logado por ID
->>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
 app.get('/api/usuario-logado/:id', (req, res) => {
     const usuario_id = req.params.id;
     db.get(`SELECT id, nome, avatar, bip, tipoUsuario FROM ranking WHERE id = ?`, [usuario_id], (err, usuario) => {
@@ -250,11 +206,7 @@ app.get('/api/usuario-logado/:id', (req, res) => {
     });
 });
 
-<<<<<<< HEAD
-// 🔹 Registrar ponto (+5 moedas)
-=======
 // Registrar ponto (+5 moedas)
->>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
 app.post('/api/ponto', (req, res) => {
     const { usuario_id } = req.body;
     if (!usuario_id) {
@@ -294,7 +246,7 @@ app.post('/api/ponto', (req, res) => {
     });
 });
 
-// 🔹 Histórico de pontos
+// Histórico de pontos
 app.get('/api/pontos/:id', (req, res) => {
     const usuario_id = req.params.id;
     const moedasAdicionadas = 5;
@@ -315,16 +267,9 @@ app.get('/api/pontos/:id', (req, res) => {
     );
 });
 
-<<<<<<< HEAD
-// 🔹 Buscar apenas moedas do usuário
-app.get('/api/moedas/:id', (req, res) => {
-    const usuario_id = req.params.id;
-
-=======
 // Buscar apenas moedas do usuário
 app.get('/api/moedas/:id', (req, res) => {
     const usuario_id = req.params.id;
->>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
     db.get(`SELECT bip FROM ranking WHERE id = ?`, [usuario_id], (err, row) => {
         if (err) {
             return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar moedas.' });
@@ -332,23 +277,13 @@ app.get('/api/moedas/:id', (req, res) => {
         if (!row) {
             return res.status(404).json({ status: 'erro', mensagem: 'Usuário não encontrado.' });
         }
-<<<<<<< HEAD
-
-=======
->>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
         res.json({ status: 'sucesso', moedas: row.bip });
     });
 });
 
-<<<<<<< HEAD
-// 🔹 Resetar ranking (manual)
-app.post('/api/reset-ranking', (req, res) => {
-    db.run(`UPDATE ranking SET bip = 0`, [], function(err) {
-=======
 // Resetar ranking (manual)
 app.post('/api/reset-ranking', (req, res) => {
     db.run(`UPDATE ranking SET bip = 0`, [], function (err) {
->>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
         if (err) {
             return res.status(500).json({ status: 'erro', mensagem: 'Erro ao resetar ranking.' });
         }
@@ -360,13 +295,3 @@ app.post('/api/reset-ranking', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
-<<<<<<< HEAD
-
-
-
-
-
-
-
-=======
->>>>>>> cf0ae7569a9f41fa9d772274e92efb97abc72fa5
