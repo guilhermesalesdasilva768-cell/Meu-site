@@ -5,32 +5,12 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 
-// Novas dependências para sessão e hashing
-const session = require('express-session');
-const cookieParser = require('cookie-parser');
-const bcrypt = require('bcrypt');
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS liberado para qualquer origem (em produção restrinja)
-app.use(cors({ origin: true, credentials: true }));
+// CORS liberado para qualquer origem
+app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json());
-app.use(cookieParser());
-
-// Configuração de sessão (em produção troque secret e use store como Redis)
-app.use(session({
-  name: 'sid',
-  secret: process.env.SESSION_SECRET || 'troque_essa_chave_em_producao',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 8 * 3600 * 1000 // 8 horas
-  }
-}));
 
 // Servir arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
@@ -107,40 +87,6 @@ app.post('/api/upload-avatar', (req, res) => {
     });
 });
 
-// ================== AUTENTICAÇÃO / MIDDLEWARES ==================
-
-// Middleware que verifica se sessão existe
-function authenticateSession(req, res, next) {
-  if (req.session && req.session.user && req.session.user.id) return next();
-  return res.status(401).json({ status: 'erro', mensagem: 'Não autenticado' });
-}
-
-// Middleware que exige que usuário seja gestor/admin
-function requireGestor(req, res, next) {
-  if (!req.session || !req.session.user || !req.session.user.id) return res.status(401).json({ status: 'erro', mensagem: 'Não autenticado' });
-  const userId = req.session.user.id;
-  db.get(`SELECT tipoUsuario FROM ranking WHERE id = ?`, [userId], (err, row) => {
-    if (err) {
-      console.error('Erro ao verificar tipoUsuario:', err);
-      return res.status(500).json({ status: 'erro', mensagem: 'Erro interno' });
-    }
-    if (!row || (row.tipoUsuario !== 'gestor' && row.tipoUsuario !== 'admin')) {
-      return res.status(403).json({ status: 'erro', mensagem: 'Acesso negado' });
-    }
-    next();
-  });
-}
-
-// Rota para o frontend checar quem está logado
-app.get('/api/me', authenticateSession, (req, res) => {
-  const id = req.session.user.id;
-  db.get(`SELECT id, nome, avatar, bip, tipoUsuario FROM ranking WHERE id = ?`, [id], (err, usuario) => {
-    if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar usuário' });
-    if (!usuario) return res.status(404).json({ status: 'erro', mensagem: 'Usuário não encontrado' });
-    res.json({ status: 'sucesso', usuario });
-  });
-});
-
 // ================== ROTAS API ==================
 
 // Ranking completo
@@ -151,7 +97,7 @@ app.get('/api/ranking', (req, res) => {
     });
 });
 
-// Top 3 (mantido)
+// Top 3
 app.get('/api/ranking/top3', (req, res) => {
     db.all(`SELECT id, nome, avatar, bip FROM ranking ORDER BY bip DESC LIMIT 3`, [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -178,97 +124,69 @@ app.post('/api/ranking', (req, res) => {
     });
 });
 
-// Cadastro de colaborador (MATRICULA agora) - com hash bcrypt
-app.post('/api/cadastrar', async (req, res) => {
+// Cadastro de colaborador (MATRICULA agora)
+app.post('/api/cadastrar', (req, res) => {
     const { nome, matricula, senha } = req.body;
     if (!nome || !matricula || !senha) {
         return res.status(400).json({ status: 'erro', mensagem: 'Nome, matrícula e senha são obrigatórios.' });
     }
-    db.get(`SELECT id FROM ranking WHERE matricula = ?`, [matricula], async (err, row) => {
-        if (err) {
-            console.error("Erro ao verificar matrícula:", err);
-            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao verificar a matrícula.' });
-        }
-        if (row) return res.status(409).json({ status: 'erro', mensagem: 'Esta matrícula já está cadastrada.' });
+db.get(`SELECT id FROM ranking WHERE matricula = ?`, [matricula], (err, row) => {
+    if (err) {
+        console.error("Erro ao verificar matrícula:", err); // <-- LOG DETALHADO
+        return res.status(500).json({ status: 'erro', mensagem: 'Erro ao verificar a matrícula.' });
+    }
+    if (row) return res.status(409).json({ status: 'erro', mensagem: 'Esta matrícula já está cadastrada.' });
 
-        // Hash da senha
-        try {
-          const hash = await bcrypt.hash(senha, 12);
-          const id = crypto.randomUUID();
-          const avatar = "https://via.placeholder.com/80";
-          db.run(`INSERT INTO ranking (id, nome, matricula, senha, avatar, bip, tipoUsuario) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [id, nome, matricula, hash, avatar, 0, "colaborador"],
-            function (err) {
-                if (err) {
-                    console.error("Erro ao cadastrar usuário:", err);
-                    return res.status(500).json({ status: 'erro', mensagem: 'Erro interno ao cadastrar o usuário.' });
-                }
-                res.status(201).json({ status: 'sucesso', mensagem: 'Usuário cadastrado com sucesso!', usuario_id: id });
+    // Cadastro normal
+    const id = crypto.randomUUID();
+    const avatar = "https://via.placeholder.com/80";
+    db.run(`INSERT INTO ranking (id, nome, matricula, senha, avatar, bip, tipoUsuario) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [id, nome, matricula, senha, avatar, 0, "colaborador"],
+        function (err) {
+            if (err) {
+                console.error("Erro ao cadastrar usuário:", err); // <-- LOG DETALHADO
+                return res.status(500).json({ status: 'erro', mensagem: 'Erro interno ao cadastrar o usuário.' });
             }
-          );
-        } catch (e) {
-          console.error('Erro ao hashear senha:', e);
-          return res.status(500).json({ status: 'erro', mensagem: 'Erro interno' });
+            res.status(201).json({ status: 'sucesso', mensagem: 'Usuário cadastrado com sucesso!', usuario_id: id });
         }
-    });
+    );
+});
 });
 
-// Cadastro de gestor (PainelAdmin) - protegido: apenas gestores/admins podem criar
-app.post('/api/cadastrar-gestor', authenticateSession, requireGestor, async (req, res) => {
+// Cadastro de gestor (PainelAdmin)
+app.post('/api/cadastrar-gestor', (req, res) => {
     const { nome, matricula, senha } = req.body;
-    if (!nome || !matricula) {
-        return res.status(400).json({ status: 'erro', mensagem: 'Nome e matrícula são obrigatórios.' });
+    if (!nome || !matricula || !senha) {
+        return res.status(400).json({ status: 'erro', mensagem: 'Nome, matrícula e senha são obrigatórios.' });
     }
-    db.get(`SELECT id FROM ranking WHERE matricula = ?`, [matricula], async (err, row) => {
+    db.get(`SELECT id FROM ranking WHERE matricula = ?`, [matricula], (err, row) => {
         if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro ao verificar matrícula.' });
         if (row) return res.status(409).json({ status: 'erro', mensagem: 'Essa matrícula já está cadastrada.' });
 
-        try {
-            const hash = senha ? await bcrypt.hash(senha, 12) : '';
-            const id = crypto.randomUUID();
-            const avatar = "https://via.placeholder.com/80";
-            db.run(
-                `INSERT INTO ranking (id, nome, matricula, senha, avatar, bip, tipoUsuario) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [id, nome, matricula, hash, avatar, 0, "gestor"],
-                function (err) {
-                    if (err) {
-                        return res.status(500).json({ status: 'erro', mensagem: 'Erro ao cadastrar gestor.' });
-                    }
-                    res.status(201).json({ status: 'sucesso', mensagem: 'Gestor cadastrado com sucesso!', usuario_id: id });
+        const id = crypto.randomUUID();
+        const avatar = "https://via.placeholder.com/80";
+        db.run(
+            `INSERT INTO ranking (id, nome, matricula, senha, avatar, bip, tipoUsuario) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [id, nome, matricula, senha, avatar, 0, "gestor"],
+            function (err) {
+                if (err) {
+                    return res.status(500).json({ status: 'erro', mensagem: 'Erro ao cadastrar gestor.' });
                 }
-            );
-        } catch (e) {
-            console.error(e);
-            res.status(500).json({ status: 'erro', mensagem: 'Erro interno ao cadastrar gestor.' });
-        }
+                res.status(201).json({ status: 'sucesso', mensagem: 'Gestor cadastrado com sucesso!', usuario_id: id });
+            }
+        );
     });
 });
 
-// Login (MATRICULA agora) - cria sessão
+// Login (MATRICULA agora)
 app.post('/api/login', (req, res) => {
     const { matricula, senha } = req.body;
     if (!matricula || !senha) {
         return res.status(400).json({ status: 'erro', mensagem: 'Matrícula e senha são obrigatórios.' });
     }
-    db.get(`SELECT id, nome, avatar, bip, tipoUsuario, senha FROM ranking WHERE matricula = ?`, [matricula], async (err, usuario) => {
-        if (err) {
-            console.error('Erro no login:', err);
-            return res.status(500).json({ status: 'erro', mensagem: 'Erro interno do servidor.' });
-        }
+    db.get(`SELECT id, nome, avatar, bip, tipoUsuario FROM ranking WHERE matricula = ? AND senha = ?`, [matricula, senha], (err, usuario) => {
+        if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro interno do servidor.' });
         if (!usuario) return res.status(401).json({ status: 'erro', mensagem: 'Matrícula ou senha incorretos.' });
-
-        try {
-          const match = await bcrypt.compare(senha, usuario.senha || '');
-          if (!match) return res.status(401).json({ status: 'erro', mensagem: 'Matrícula ou senha incorretos.' });
-        } catch (e) {
-          console.error('Erro ao comparar senha:', e);
-          return res.status(500).json({ status: 'erro', mensagem: 'Erro interno' });
-        }
-
-        // cria sessão
-        req.session.user = { id: usuario.id, tipoUsuario: usuario.tipoUsuario };
-        // não retornar a senha
-        delete usuario.senha;
 
         res.status(200).json({
             status: 'sucesso',
@@ -278,18 +196,7 @@ app.post('/api/login', (req, res) => {
     });
 });
 
-// Logout (encerra sessão)
-app.post('/api/logout', (req, res) => {
-  req.session.destroy(err => {
-    if (err) {
-      return res.status(500).json({ status: 'erro', mensagem: 'Erro ao encerrar sessão.' });
-    }
-    res.clearCookie('sid');
-    res.json({ status: 'sucesso', mensagem: 'Logout realizado.' });
-  });
-});
-
-// Buscar usuário logado por ID (mantido)
+// Buscar usuário logado por ID
 app.get('/api/usuario-logado/:id', (req, res) => {
     const usuario_id = req.params.id;
     db.get(`SELECT id, nome, avatar, bip, tipoUsuario FROM ranking WHERE id = ?`, [usuario_id], (err, usuario) => {
@@ -297,23 +204,6 @@ app.get('/api/usuario-logado/:id', (req, res) => {
         if (!usuario) return res.status(404).json({ status: 'erro', mensagem: 'Usuário não encontrado.' });
         res.json({ status: 'sucesso', usuario });
     });
-});
-
-// Rotas de gestão para o painel admin (protegidas)
-app.get('/api/gestao/gestores', authenticateSession, requireGestor, (req, res) => {
-  db.all(`SELECT id, nome, matricula, tipoUsuario FROM ranking WHERE tipoUsuario IN ('gestor','admin') ORDER BY nome`, [], (err, rows) => {
-    if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro ao buscar gestores' });
-    res.json(rows);
-  });
-});
-
-app.delete('/api/gestao/gestores/:id', authenticateSession, requireGestor, (req, res) => {
-  const id = req.params.id;
-  db.run(`DELETE FROM ranking WHERE id = ? AND tipoUsuario IN ('gestor','admin')`, [id], function(err) {
-    if (err) return res.status(500).json({ status: 'erro', mensagem: 'Erro ao remover gestor.'});
-    if (this.changes === 0) return res.status(404).json({ status: 'erro', mensagem: 'Gestor não encontrado.'});
-    res.json({ status: 'sucesso', mensagem: 'Gestor removido.'});
-  });
 });
 
 // Registrar ponto (+5 moedas)
