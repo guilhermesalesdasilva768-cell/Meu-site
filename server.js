@@ -4,18 +4,13 @@ const cors = require('cors');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
-const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // CORS liberado para qualquer origem
 app.use(cors({ origin: '*', credentials: true }));
-
-// Aumenta limites para payloads JSON (útil se você ainda enviar base64)
-// Ajuste o limite conforme necessário (ex: '5mb')
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ limit: '5mb', extended: true }));
+app.use(express.json());
 
 // Servir arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
@@ -57,113 +52,39 @@ db.run(`
     )
 `);
 
-// ================== UPLOAD DE AVATAR ==================
+// ================== UPLOAD DE AVATAR POR BASE64 ==================
 const avatarsDir = path.join(__dirname, 'public', 'avatars');
 if (!fs.existsSync(avatarsDir)) {
     fs.mkdirSync(avatarsDir, { recursive: true });
 }
 
-// Configuração do multer para aceitar multipart/form-data (envio de arquivos)
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, avatarsDir);
-  },
-  filename: function (req, file, cb) {
-    // nome temporário; depois renomearemos para usuario_id.ext
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname) || '.png';
-    cb(null, unique + ext);
-  }
-});
-const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-  fileFilter: (req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) return cb(new Error('Apenas imagens são permitidas'));
-    cb(null, true);
-  }
-});
-
-/*
-  Endpoint /api/upload-avatar agora aceita:
-  - multipart/form-data com campo 'avatar' (arquivo) e 'usuario_id' (form field)
-    -> recomendado quando enviar arquivos grandes (mais robusto)
-  - JSON { usuario_id, avatarBase64 } (base64) — mantido para compatibilidade,
-    com o limite de body configurado acima.
-*/
 app.post('/api/upload-avatar', (req, res) => {
-  // Se o Content-Type for multipart/form-data, use multer dinamicamente
-  if (req.is('multipart/form-data')) {
-    upload.single('avatar')(req, res, function (err) {
-      if (err) {
-        console.error('Multer error:', err);
-        if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(413).json({ status: 'erro', mensagem: 'Arquivo muito grande. Limite 5MB.' });
-        }
-        return res.status(400).json({ status: 'erro', mensagem: err.message || 'Erro no upload do arquivo.' });
-      }
-
-      const usuario_id = req.body.usuario_id;
-      if (!req.file || !usuario_id) {
-        // Remove arquivo temporário caso exista
-        if (req.file && req.file.path && fs.existsSync(req.file.path)) {
-          fs.unlink(req.file.path, () => {});
-        }
-        return res.status(400).json({ status: 'erro', mensagem: 'ID do usuário e arquivo são obrigatórios.' });
-      }
-
-      // Determina extensão e renomeia para <usuario_id>.<ext>
-      const ext = path.extname(req.file.originalname) || path.extname(req.file.filename) || '.png';
-      const newFilename = `${usuario_id}${ext}`;
-      const newPath = path.join(avatarsDir, newFilename);
-
-      fs.rename(req.file.path, newPath, (renameErr) => {
-        if (renameErr) {
-          console.error('Erro ao mover arquivo:', renameErr);
-          return res.status(500).json({ status: 'erro', mensagem: 'Erro ao salvar imagem.' });
-        }
-        const avatarUrl = `${req.protocol}://${req.get('host')}/avatars/${newFilename}`;
-        db.run(`UPDATE ranking SET avatar = ? WHERE id = ?`, [avatarUrl, usuario_id], function (dbErr) {
-          if (dbErr) {
-            console.error('Erro ao atualizar DB:', dbErr);
-            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao atualizar avatar no banco.' });
-          }
-          res.json({ status: 'sucesso', avatarUrl });
-        });
-      });
-    });
-    return;
-  }
-
-  // Caso contrário, tratar JSON com avatarBase64 (compatibilidade com client que envia base64)
-  const { usuario_id, avatarBase64 } = req.body || {};
-  if (!usuario_id || !avatarBase64) {
-    return res.status(400).json({ status: 'erro', mensagem: 'ID do usuário e avatarBase64 são obrigatórios.' });
-  }
-  const matches = String(avatarBase64).match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
-  if (!matches) {
-    return res.status(400).json({ status: 'erro', mensagem: 'Formato do avatar inválido.' });
-  }
-  const ext = matches[1];
-  const data = matches[2];
-  const buffer = Buffer.from(data, 'base64');
-  const filename = `${usuario_id}.${ext}`;
-  const filePath = path.join(avatarsDir, filename);
-
-  fs.writeFile(filePath, buffer, (err) => {
-    if (err) {
-      console.error('Erro ao salvar imagem base64:', err);
-      return res.status(500).json({ status: 'erro', mensagem: 'Erro ao salvar imagem.' });
+    const { usuario_id, avatarBase64 } = req.body;
+    if (!usuario_id || !avatarBase64) {
+        return res.status(400).json({ status: 'erro', mensagem: 'ID do usuário e avatarBase64 são obrigatórios.' });
     }
-    const avatarUrl = `${req.protocol}://${req.get('host')}/avatars/${filename}`;
-    db.run(`UPDATE ranking SET avatar = ? WHERE id = ?`, [avatarUrl, usuario_id], function (err) {
-      if (err) {
-        console.error('Erro ao atualizar avatar (base64):', err);
-        return res.status(500).json({ status: 'erro', mensagem: 'Erro ao atualizar avatar.' });
-      }
-      res.json({ status: 'sucesso', avatarUrl: avatarUrl });
+    const matches = avatarBase64.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+    if (!matches) {
+        return res.status(400).json({ status: 'erro', mensagem: 'Formato do avatar inválido.' });
+    }
+    const ext = matches[1];
+    const data = matches[2];
+    const buffer = Buffer.from(data, 'base64');
+    const filename = `${usuario_id}.${ext}`;
+    const filePath = path.join(avatarsDir, filename);
+
+    fs.writeFile(filePath, buffer, (err) => {
+        if (err) {
+            return res.status(500).json({ status: 'erro', mensagem: 'Erro ao salvar imagem.' });
+        }
+        const avatarUrl = `${req.protocol}://${req.get('host')}/avatars/${filename}`;
+        db.run(`UPDATE ranking SET avatar = ? WHERE id = ?`, [avatarUrl, usuario_id], function (err) {
+            if (err) {
+                return res.status(500).json({ status: 'erro', mensagem: 'Erro ao atualizar avatar.' });
+            }
+            res.json({ status: 'sucesso', avatarUrl: avatarUrl });
+        });
     });
-  });
 });
 
 // ================== ROTAS API ==================
